@@ -18,7 +18,7 @@ ProLink is a high-performance, asynchronous REST API built with **FastAPI** and 
 
 ## 🛠️ Local Setup
 1. Clone the repo: `git clone ...`
-2. Create `.env` file (see `.env.example`)
+2. Create `.env` file 
 3. Install dependencies: `pip install -r requirements.txt`
 4. Run migrations: `alembic upgrade head`
 5. Start server: `uvicorn app.main:app --reload`
