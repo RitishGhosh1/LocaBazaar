@@ -24,5 +24,12 @@ class ServiceRead(ServiceBase):
     reviews:list["ReviewRead"] = []
     model_config=ConfigDict(from_attributes=True)
 
+from typing import List, Optional
+
+class ServiceListResponse(BaseModel):
+    items: List[ServiceShortRead]
+    total: int
+    next_cursor: Optional[int] = None # The ID to use for the next request
+
 from app.schemas.reviews import ReviewRead
 ServiceRead.model_rebuild()

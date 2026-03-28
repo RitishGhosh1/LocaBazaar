@@ -1,14 +1,14 @@
 from datetime import datetime, timezone
-
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select,func
 from sqlalchemy.orm import selectinload
 from app.db.session import get_async_db
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User, UserRole
 from app.models.services import Service
-from app.schemas.booking import BookingCreate, BookingRead, BookingStatusUpdate
+from app.schemas.booking import BookingCreate, BookingRead, BookingStatusUpdate,BookingListResponse
 from app.api.v1.endpoints.dependency import get_current_user
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
@@ -46,25 +46,51 @@ async def create_booking(
     await db.refresh(booking)
     return booking
 
-@router.get("/", response_model=list[BookingRead])
+@router.get("/", response_model=BookingListResponse)
 async def get_bookings(
     db: AsyncSession = Depends(get_async_db),
     user: User = Depends(get_current_user),
+    skip: Optional[int] = 0,
+    limit: int = 10,
+    cursor: Optional[int] = None
 ):
-
+    # 1. Base Query based on Role
     if user.role == UserRole.CUSTOMER:
-        stmt = select(Booking).where(Booking.user_id == user.id).options(
-            selectinload(Booking.services)
-        )
+        stmt = select(Booking).where(Booking.user_id == user.id)
     else:
-        stmt = (
-            select(Booking)
-            .join(Service)
-            .where(Service.owner_id == user.id)
-            .options(selectinload(Booking.services))
-        )
+        raise HTTPException(status_code=401,detail="NOT AUTHORISED")
+    # else:
+    #     # For PROVIDERS: Find bookings where they own the service
+    #     stmt = select(Booking).join(Service).where(Service.owner_id == user.id)
+
+    # 2. Get Total Count for this specific user/role
+    total_count = await db.scalar(
+        select(func.count()).select_from(stmt.subquery())
+    )
+
+    # 3. Add Relationships and Order
+    stmt = stmt.options(selectinload(Booking.services)).order_by(Booking.id.asc())
+
+    # 4. Apply Pagination Logic
+    if cursor:
+        stmt = stmt.where(Booking.id > cursor)
+    else:
+        stmt = stmt.offset(skip)
+    
+    stmt = stmt.limit(limit)
+
+    # 5. Execute
     result = await db.execute(stmt)
-    return result.scalars().all()
+    bookings = result.scalars().all()
+
+    # 6. Metadata
+    next_cursor = bookings[-1].id if len(bookings) == limit else None
+
+    return {
+        "items": bookings,
+        "total": total_count,
+        "next_cursor": next_cursor
+    }
 
 @router.patch("/{booking_id}", response_model=BookingRead)
 async def update_booking_status(
@@ -94,3 +120,4 @@ async def update_booking_status(
     await db.commit()
     await db.refresh(booking)
     return booking
+

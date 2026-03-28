@@ -18,3 +18,8 @@ class BookingRead(BookingBase):
     status: BookingStatus
 
     model_config = ConfigDict(from_attributes=True)
+
+class BookingListResponse(BookingBase):
+    items:list[BookingRead]
+    total:int
+    next_cursor:Optional[int]=None
