@@ -34,9 +34,6 @@ async def create_service(
     return db_service
 
 
-
-
-
 @router.patch("/{service_id}/toggle", response_model=ServiceRead)
 async def toggle_service_status(
     service_id: int,

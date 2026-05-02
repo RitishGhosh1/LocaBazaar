@@ -6,6 +6,11 @@ class Config(BaseSettings):
     DB_HOST: str
     DB_PORT: int
     DB_PASSWORD: str
+    
+    GOOGLE_CLIENT_ID: str | None = None
+    GOOGLE_CLIENT_SECRET: str | None = None
+    GOOGLE_CONF_URL: str = "https://accounts.google.com/.well-known/openid-configuration"
+    
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8",extra="ignore")
 
 config=Config()

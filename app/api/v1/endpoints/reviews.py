@@ -1,3 +1,4 @@
+from __future__ import annotations
 from app.models.reviews import Review
 from app.models.booking import Booking
 from app.schemas.reviews import ReviewCreate, ReviewRead, ReviewListResponse
@@ -44,7 +45,7 @@ async def get_reviews_for_service(
     db: AsyncSession = Depends(get_async_db),
     skip: int = 0,
     limit: int = 10,
-    cursor: Optional[int] = None
+    cursor: int|None = None
 ):
     # 1. Unique Cache Key per Service and Page
     cache_key = f"reviews:svc:{service_id}:s:{skip}:l:{limit}:c:{cursor}"

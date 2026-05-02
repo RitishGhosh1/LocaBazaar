@@ -5,7 +5,7 @@ from sqlalchemy import Enum
 class UserBase(BaseModel):
     name:str
     email:EmailStr
-    phone:str
+    phone: Optional[str] = None
     bio: Optional[str] = None
     
 class UserCreate(UserBase):
