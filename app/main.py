@@ -14,8 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 app = FastAPI(title="LocaBazaar API", version="1.0.0")
 
 origins = [
-    "http://localhost:3000",                  # Local Next.js developer environment
-    "https://www.your-frontend-domain.com",   # Future production frontend domain
+    "*",  # Future production frontend domain
 ]
 
 app.add_middleware(
