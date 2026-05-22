@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request,Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_async_db
@@ -8,6 +9,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.core.security import verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from datetime import timedelta, timezone, datetime
 from app.core.oauth import oauth
+import urllib.parse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -30,21 +32,28 @@ async def login(
 
 
 @router.get("/login/google")
-async def login_google(request: Request):
+async def login_google(
+    request: Request, 
+    # 1. Accept a dynamic parameter indicating where the tokens should land
+    frontend_redirect: str = Query(default="https://locabazaar-api.onrender.com/docs")
+):
     redirect_uri = request.url_for('auth_google')
-    print("Using redirect URI:", redirect_uri)   # For debugging
-    return await oauth.google.authorize_redirect(request, redirect_uri)
+    print("Using redirect URI:", redirect_uri) 
+    
+    # 2. Google's state parameter takes any string and hands it back untouched.
+    # We pass the frontend's target destination inside it!
+    extra_params = {"state": frontend_redirect}
+    
+    return await oauth.google.authorize_redirect(request, redirect_uri, **extra_params)
 
 
-@router.get("/google")          # ← Clean route, no extra /auth
+@router.get("/google")
 async def auth_google(request: Request, db: AsyncSession = Depends(get_async_db)):
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception as e:
-        print("OAuth Error:", str(e))   # Add this for better debugging
+        print("OAuth Error:", str(e))   
         raise HTTPException(status_code=400, detail=f"OAuth error: {str(e)}")
-    
-    # ... rest of your code
         
     user_info = token.get('userinfo')
     if not user_info:
@@ -58,7 +67,6 @@ async def auth_google(request: Request, db: AsyncSession = Depends(get_async_db)
     user = result.scalars().first()
     
     if not user:
-        # Create new user
         user = User(
             email=email,
             name=name,
@@ -70,7 +78,6 @@ async def auth_google(request: Request, db: AsyncSession = Depends(get_async_db)
         await db.commit()
         await db.refresh(user)
     elif not user.google_id:
-        # Link google_id if not present
         user.google_id = google_id
         await db.commit()
         await db.refresh(user)
@@ -79,7 +86,19 @@ async def auth_google(request: Request, db: AsyncSession = Depends(get_async_db)
     access_token = create_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
-
+    
+    # 3. EXTRACT THE STATE DESTINATION BACK FROM GOOGLE
+    # Google passes back all original query params under request.query_params
+    frontend_destination = request.query_params.get("state")
+    
+    # Fallback to the safe Swagger documentation if no state query existed
+    if not frontend_destination:
+        frontend_destination = "https://locabazaar-api.onrender.com/docs"
+        
+    # 4. THE HAND-OFF FIX: Divert traffic dynamically
+    # Build your destination parameter URL safely
+    redirect_url = f"{frontend_destination}?token={access_token}&token_type=bearer"
+    
+    return RedirectResponse(url=redirect_url)
 
 
