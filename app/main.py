@@ -11,14 +11,19 @@ from app.core.config import token_settings
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-app = FastAPI(title="ProLink API", version="1.0.0")
+app = FastAPI(title="LocaBazaar API", version="1.0.0")
+
+origins = [
+    "http://localhost:3000",                  # Local Next.js developer environment
+    "https://www.your-frontend-domain.com",   # Future production frontend domain
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"], # Your Next.js port
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],                      # Allows standard verbs (GET, POST, etc.)
+    allow_headers=["*"],                      # Essential for accepting authorization Bearer headers
 )
 
 app.add_middleware(

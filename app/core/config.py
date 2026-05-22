@@ -7,6 +7,9 @@ class Config(BaseSettings):
     DB_PORT: int
     DB_PASSWORD: str
     
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    
     GOOGLE_CLIENT_ID: str | None = None
     GOOGLE_CLIENT_SECRET: str | None = None
     GOOGLE_CONF_URL: str = "https://accounts.google.com/.well-known/openid-configuration"

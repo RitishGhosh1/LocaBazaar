@@ -32,15 +32,19 @@ async def login(
 @router.get("/login/google")
 async def login_google(request: Request):
     redirect_uri = request.url_for('auth_google')
+    print("Using redirect URI:", redirect_uri)   # For debugging
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
-@router.get("/auth/google")
+@router.get("/google")          # ← Clean route, no extra /auth
 async def auth_google(request: Request, db: AsyncSession = Depends(get_async_db)):
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception as e:
+        print("OAuth Error:", str(e))   # Add this for better debugging
         raise HTTPException(status_code=400, detail=f"OAuth error: {str(e)}")
+    
+    # ... rest of your code
         
     user_info = token.get('userinfo')
     if not user_info:

@@ -2,12 +2,14 @@ import json
 import redis.asyncio as redis
 from typing import Any, Optional
 
+from app.core.config import config
+
 class RedisManager:
     def __init__(self):
         # host='localhost' for now. When we Dockerize, we change this to 'redis'
         self.client = redis.Redis(
-            host="localhost", 
-            port=6379, 
+            host=config.REDIS_HOST, 
+            port=config.REDIS_PORT, 
             decode_responses=True
         )
 

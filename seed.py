@@ -49,12 +49,12 @@ async def seed_phase_1():
             await db.refresh(provider)
 
         # 3. Create a Sample Customer with google_id
-        res = await db.execute(select(User).where(User.email == "customer@prolink.com"))
+        res = await db.execute(select(User).where(User.email == "customer@LocaBazaar.com"))
         customer = res.scalars().first()
         if not customer:
             customer = User(
                 name="John Doe",
-                email="customer@prolink.com",
+                email="customer@LocaBazaar.com",
                 hashed_password=get_password_hash("cust123"),
                 google_id="google_customer_456", # Added google_id
                 phone="9998887776",
