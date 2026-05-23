@@ -1,12 +1,15 @@
-from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, Request,Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-
 from app.db.session import get_async_db
 from app.models.user import User, UserRole
+from app.schemas.user import UserRead, UserCreate
+from fastapi.security import OAuth2PasswordRequestForm
 from app.core.security import verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from datetime import timedelta, timezone, datetime
 from app.core.oauth import oauth
+import urllib.parse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
