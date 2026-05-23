@@ -34,15 +34,15 @@ async def login(
 @router.get("/login/google")
 async def login_google(
     request: Request, 
-    # 1. Accept a dynamic parameter indicating where the tokens should land
-    frontend_redirect: str = Query(default="https://locabazaar-api.onrender.com/docs")
+    # # 1. Accept a dynamic parameter indicating where the tokens should land
+    # frontend_redirect: str = Query(default="https://locabazaar-api.onrender.com/docs")
 ):
     redirect_uri = request.url_for('auth_google')
     print("Using redirect URI:", redirect_uri) 
     
     # 2. Google's state parameter takes any string and hands it back untouched.
     # We pass the frontend's target destination inside it!
-    extra_params = {"state": frontend_redirect}
+    # extra_params = {"state": frontend_redirect}
     
     return await oauth.google.authorize_redirect(request, redirect_uri, **extra_params)
 
@@ -87,18 +87,27 @@ async def auth_google(request: Request, db: AsyncSession = Depends(get_async_db)
         data={"sub": user.email}, expires_delta=access_token_expires
     )
     
-    # 3. EXTRACT THE STATE DESTINATION BACK FROM GOOGLE
-    # Google passes back all original query params under request.query_params
-    frontend_destination = request.query_params.get("state")
+    # # 3. EXTRACT THE STATE DESTINATION BACK FROM GOOGLE
+    # # Google passes back all original query params under request.query_params
+    # frontend_destination = request.query_params.get("state")
     
-    # Fallback to the safe Swagger documentation if no state query existed
-    if not frontend_destination:
-        frontend_destination = "https://locabazaar-api.onrender.com/docs"
+    # # Fallback to the safe Swagger documentation if no state query existed
+    # if not frontend_destination:
+    #     frontend_destination = "https://locabazaar-api.onrender.com/docs"
         
-    # 4. THE HAND-OFF FIX: Divert traffic dynamically
-    # Build your destination parameter URL safely
-    redirect_url = f"{frontend_destination}?token={access_token}&token_type=bearer"
+    # # 4. THE HAND-OFF FIX: Divert traffic dynamically
+    # # Build your destination parameter URL safely
+    # redirect_url = f"{frontend_destination}?token={access_token}&token_type=bearer"
     
-    return RedirectResponse(url=redirect_url)
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "is_superuser": user.is_superuser
+        }
+    }
 
 
