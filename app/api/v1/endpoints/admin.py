@@ -19,7 +19,7 @@ async def get_superuser(user: User = Depends(get_current_user)):
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 # 1. Platform-wide Stats (The "Landlord" View)
-@router.get("/dashboard/stats", include_in_schema=False)
+@router.get("/dashboard/stats", include_in_schema=True)
 async def get_platform_stats(
     db: AsyncSession = Depends(get_async_db),
     admin: User = Depends(get_superuser),
@@ -36,7 +36,7 @@ async def get_platform_stats(
     }
 
 # 2. Safety Rail: Deactivate any user (except other Admins)
-@router.patch("/users/{user_id}/deactivate", include_in_schema=False)
+@router.patch("/users/{user_id}/deactivate", include_in_schema=True)
 async def admin_deactivate_user(
     user_id: int,
     db: AsyncSession = Depends(get_async_db),
@@ -68,7 +68,7 @@ async def admin_deactivate_user(
     return {"detail": f"User {user_id} has been suspended."}
 
 # 3. Hard Delete (Only for already deactivated non-admins)
-@router.delete("/users/{user_id}", include_in_schema=False)
+@router.delete("/users/{user_id}", include_in_schema=True)
 async def admin_hard_delete_user(
     user_id: int,
     db: AsyncSession = Depends(get_async_db),
@@ -90,7 +90,7 @@ async def admin_hard_delete_user(
     return {"detail": "Record permanently removed from database."}
 
 # 4. Content Moderation: Suspend a Service
-@router.patch("/services/{service_id}/suspend", include_in_schema=False)
+@router.patch("/services/{service_id}/suspend", include_in_schema=True)
 async def admin_suspend_service(
     service_id: int,
     db: AsyncSession = Depends(get_async_db),
