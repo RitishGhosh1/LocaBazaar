@@ -1,15 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Request,Query
-from fastapi.responses import RedirectResponse
+from datetime import timedelta
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+
 from app.db.session import get_async_db
 from app.models.user import User, UserRole
-from app.schemas.user import UserRead, UserCreate
-from fastapi.security import OAuth2PasswordRequestForm
 from app.core.security import verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
-from datetime import timedelta, timezone, datetime
 from app.core.oauth import oauth
-import urllib.parse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -32,24 +29,19 @@ async def login(
 
 
 @router.get("/login/google")
-async def login_google(
-    request: Request, 
-    # # 1. Accept a dynamic parameter indicating where the tokens should land
-    # frontend_redirect: str = Query(default="https://locabazaar-api.onrender.com/docs")
-):
+async def login_google(request: Request):
+    # Standard static redirect URI extraction linked directly to your auth_google route name
     redirect_uri = request.url_for('auth_google')
     print("Using redirect URI:", redirect_uri) 
     
-    # 2. Google's state parameter takes any string and hands it back untouched.
-    # We pass the frontend's target destination inside it!
-    # extra_params = {"state": frontend_redirect}
-    
-    return await oauth.google.authorize_redirect(request, redirect_uri, **extra_params)
+    # Fire the standard authorization handshake step directly with Google's servers
+    return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
 @router.get("/google")
 async def auth_google(request: Request, db: AsyncSession = Depends(get_async_db)):
     try:
+        # 1. Capture the authorization code token package back from Google
         token = await oauth.google.authorize_access_token(request)
     except Exception as e:
         print("OAuth Error:", str(e))   
@@ -63,42 +55,38 @@ async def auth_google(request: Request, db: AsyncSession = Depends(get_async_db)
     google_id = user_info.get('sub')
     name = user_info.get('name')
     
+    # 2. Query the PostgreSQL database to check if this user already exists
     result = await db.execute(select(User).filter(User.email == email))
     user = result.scalars().first()
     
+    # 3. Dynamic User Ingestion Loop
     if not user:
+        # Create and write a brand new user record to your clean tables
         user = User(
             email=email,
             name=name,
             google_id=google_id,
-            role=UserRole.CUSTOMER,
-            is_active=True
+            role=UserRole.CUSTOMER,  # Default system registration constraint
+            is_active=True,
+            is_superuser=False
         )
         db.add(user)
         await db.commit()
         await db.refresh(user)
     elif not user.google_id:
+        # Link their Google identifier if they signed up natively via email/password first
         user.google_id = google_id
         await db.commit()
         await db.refresh(user)
 
+    # 4. Generate your internal application's high-privilege access token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
     
-    # # 3. EXTRACT THE STATE DESTINATION BACK FROM GOOGLE
-    # # Google passes back all original query params under request.query_params
-    # frontend_destination = request.query_params.get("state")
-    
-    # # Fallback to the safe Swagger documentation if no state query existed
-    # if not frontend_destination:
-    #     frontend_destination = "https://locabazaar-api.onrender.com/docs"
-        
-    # # 4. THE HAND-OFF FIX: Divert traffic dynamically
-    # # Build your destination parameter URL safely
-    # redirect_url = f"{frontend_destination}?token={access_token}&token_type=bearer"
-    
+    # 🎯 THE PURE JSON TEXT HAND-OFF FIX:
+    # This strips away redirect strings and outputs raw token data directly to the view!
     return {
         "access_token": access_token, 
         "token_type": "bearer",
@@ -109,5 +97,3 @@ async def auth_google(request: Request, db: AsyncSession = Depends(get_async_db)
             "is_superuser": user.is_superuser
         }
     }
-
-
