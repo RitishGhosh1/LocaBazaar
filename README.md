@@ -1,43 +1,189 @@
-# LocaBazaar API 🚀
-> **A High-Performance, Distributed Asynchronous Marketplace API Platform.**
+# 🚀 LocaBazaar API
 
-LocaBazaar is an enterprise-grade, asynchronous backend platform engineered with **FastAPI** to facilitate multi-provider hyperlocal service discovery, secure scheduling, and zero-trust identity operations. 
-
----
-
-## 🛠 Tech Stack & Architecture Design
-
-- **Runtime Environment:** Docker Containerization (Multi-stage builds)
-- **Application Layer:** FastAPI (Python 3.12, fully Asynchronous concurrency)
-- **Primary Database:** PostgreSQL (Managed Cloud Layer via SQLAlchemy 2.0 Async Sessions)
-- **Caching Core:** Redis / Render Key-Value (RAM-backed Cache-Aside implementation)
-- **Identity Protocol:** OAuth 2.0 & OpenID Connect (OIDC via Google Sign-In)
+A production-style backend API for a hyperlocal marketplace platform built with **FastAPI**. LocaBazaar allows customers to discover local service providers, book services, and manage bookings while supporting secure authentication, role-based authorization, caching, and cloud deployment.
 
 ---
 
-## 💡 System Architecture Highlights
+## ✨ Features
 
-### 1. Zero-Trust Identity Flow (OIDC & Stateless JWT)
-- **Delegated Authentication:** Integrated Google Sign-In utilizing OpenID Connect (OIDC) protocols. The system cryptographically validates incoming Google ID Tokens (JWTs) against Google's authorization servers to securely extract verified identity claims without the liability of direct password storage management.
-- **Stateless Session Control:** Employs cryptographically signed JSON Web Tokens (JWT) embedded with Role-Based Access Control (RBAC) claims (Customer, Provider, Admin) to enforce permission validation down to the individual endpoint layer without stateful server-side storage lookup bottlenecks.
-
-### 2. High-Performance Sub-10ms Cache-Aside Architecture
-- To alleviate read-heavy database strain, service queries hit an in-memory Redis layer first. 
-- **Cache Hits:** Served in under 10ms directly from RAM memory maps.
-- **Cache Misses:** Lazily fetched from PostgreSQL, committed back to Redis RAM, and cleanly returned to the requester.
-- **Read-After-Write Consistency:** Implements a dynamic invalidation layer. Any state-altering structural transaction (`POST`, `PUT`, `DELETE`) automatically fires background events to invalidate matching Redis cache patterns, guaranteeing strict data freshness.
-
-### 3. Infinite Scalability Pagination
-- Completely rejects traditional, slow `OFFSET` / `LIMIT` pagination architectures which degrade to $O(N)$ linear time complexities at high volume.
-- Utilizes **Cursor-Based Pagination** mapping deterministic, unique chronological indices, maintaining a strict $O(1)$ constant processing speed regardless of database record depths.
-
-### 4. Advanced Security Hardening
-- **User Enumeration Defense:** Authentication routines return immutable, generalized error structures (`Authentication Failed`) paired with identical HTTP status structures to prevent analytical malicious account filtering.
-- **Timing Attack Mitigation:** Core validation gates enforce intentional execution delays to equalize server processing timelines, neutralizing stopwatch-based account verification indexing tactics.
+- 🔐 JWT Authentication & Authorization
+- 🌐 Google OAuth 2.0 Sign-In
+- 👥 Role-Based Access Control (RBAC)
+  - Customer
+  - Provider
+  - Admin
+- 📦 Service & Provider Management
+- 📅 Booking Management
+- ⚡ Redis Caching
+- 📄 Cursor-Based Pagination
+- 📚 Interactive API Documentation (Swagger)
+- ☁️ Cloud Deployment
 
 ---
 
-## 🚀 Live Cloud Exploration
+# 🏗️ Architecture
 
-- **Interactive Swagger Documentation:** [https://locabazaar-api.onrender.com/docs](https://locabazaar-api.onrender.com/docs)
-- **Alternative ReDoc Technical Spec:** [https://locabazaar-api.onrender.com/redoc](https://locabazaar-api.onrender.com/redoc)
+```
+                Client
+                   │
+                   ▼
+            FastAPI Application
+                   │
+      ┌────────────┴────────────┐
+      ▼                         ▼
+ Authentication            Business Logic
+ (JWT / Google OAuth)            │
+      │                          │
+      ▼                          ▼
+ PostgreSQL (Supabase)      Redis (Upstash)
+      │
+ SQLAlchemy Async ORM
+```
+
+---
+
+# 🛠 Tech Stack
+
+| Layer | Technology |
+|--------|------------|
+| Backend | FastAPI |
+| Language | Python 3.12 |
+| Database | PostgreSQL (Supabase) |
+| ORM | SQLAlchemy 2.0 Async |
+| Cache | Redis (Upstash) |
+| Authentication | JWT + OAuth2 + Google Sign-In |
+| Validation | Pydantic |
+| API Docs | Swagger / OpenAPI |
+| Deployment | Render |
+| Containerization | Docker |
+
+---
+
+# 🔐 Authentication
+
+LocaBazaar supports two authentication methods:
+
+- JWT Authentication
+- Google OAuth 2.0 Login
+
+After successful authentication, the API issues JWT access tokens that are used to authorize protected endpoints.
+
+Role-based authorization is enforced through FastAPI dependencies.
+
+---
+
+# 👥 Roles
+
+### Customer
+
+- Browse services
+- Book providers
+- Manage bookings
+
+### Provider
+
+- Manage services
+- View bookings
+- Update service availability
+
+### Admin
+
+- Manage categories
+- Manage products
+- Manage platform resources
+
+---
+
+# ⚡ Redis Caching
+
+Redis is used as a cache layer to reduce database reads for frequently requested resources.
+
+The application follows a Cache-Aside strategy:
+
+1. Check Redis
+2. If cache miss → query PostgreSQL
+3. Store response in Redis
+4. Return data
+
+Cache entries are invalidated whenever relevant resources are modified.
+
+---
+
+# 📑 Pagination
+
+Large datasets use **Cursor-Based Pagination** instead of traditional Offset Pagination for improved scalability and consistent query performance.
+
+---
+
+# 🌍 Live Demo
+
+### Swagger UI
+
+https://locabazaar-api.onrender.com/docs
+
+### ReDoc
+
+https://locabazaar-api.onrender.com/redoc
+
+---
+
+# 🚀 Running Locally
+
+```bash
+git clone https://github.com/RitishGhosh1/LocaBazaar.git
+
+cd LocaBazaar
+
+docker-compose up --build
+```
+
+or
+
+```bash
+uvicorn app.main:app --reload
+```
+
+---
+
+# Environment Variables
+
+```env
+DB_HOST=
+DB_PORT=
+DB_NAME=
+DB_USER=
+DB_PASSWORD=
+
+REDIS_URL=
+
+SECRET_KEY=
+ALGORITHM=
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+```
+
+---
+
+# API Modules
+
+- Authentication
+- Users
+- Providers
+- Services
+- Bookings
+- Categories
+- Products
+
+---
+
+# Future Improvements
+
+- Refresh Tokens
+- Background Notifications
+- Payment Gateway Integration
+- Rate Limiting
+- CI/CD Pipeline
+- Unit & Integration Tests
+
+---
