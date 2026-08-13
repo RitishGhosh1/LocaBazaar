@@ -6,6 +6,7 @@ class Config(BaseSettings):
     DB_HOST: str
     DB_PORT: int
     DB_PASSWORD: str
+    FRONTEND_URL: str
     
     # 🎯 THE FIX: Expect a single production-grade connection string from the cloud
     # We leave the localhost fallback active exclusively for your local computer

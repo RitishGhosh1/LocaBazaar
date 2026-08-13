@@ -55,7 +55,9 @@ async def get_bookings(
     cursor: Optional[int] = None
 ):
     # 1. Base Query based on Role
-    if user.role == UserRole.CUSTOMER:
+    if user.role == UserRole.PROVIDER:
+        stmt=select(Booking).join(Service).where(Service.owner_id==user.id)
+    elif user.role == UserRole.CUSTOMER:
         stmt = select(Booking).where(Booking.user_id == user.id)
     else:
         raise HTTPException(status_code=401,detail="NOT AUTHORISED")

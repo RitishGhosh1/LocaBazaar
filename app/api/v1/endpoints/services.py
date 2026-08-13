@@ -33,6 +33,15 @@ async def create_service(
     await db.refresh(db_service)
     return db_service
 
+@router.get("/mine", response_model=list[ServiceRead])
+async def get_my_services(
+    db: AsyncSession = Depends(get_async_db),
+    user: User = Depends(get_current_user),
+):
+    stmt = select(Service).where(Service.owner_id == user.id).options(selectinload(Service.reviews))
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
 
 @router.patch("/{service_id}/toggle", response_model=ServiceRead)
 async def toggle_service_status(
@@ -134,12 +143,4 @@ async def get_available_services(db:AsyncSession=Depends(get_async_db),
 
     return response_data
 
-@router.get("/mine", response_model=list[ServiceRead])
-async def get_my_services(
-    db: AsyncSession = Depends(get_async_db),
-    user: User = Depends(get_current_user),
-):
-    stmt = select(Service).where(Service.owner_id == user.id).options(selectinload(Service.reviews))
-    result = await db.execute(stmt)
-    return result.scalars().all()
 

@@ -4,12 +4,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_async_db
 from app.models.user import User, UserRole
-from app.schemas.user import UserRead, UserCreate
 from fastapi.security import OAuth2PasswordRequestForm
 from app.core.security import verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
-from datetime import timedelta, timezone, datetime
+from datetime import timedelta
 from app.core.oauth import oauth
-import urllib.parse
+from app.core.config import config
+FRONTEND_URL=config.FRONTEND_URL
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -28,7 +28,13 @@ async def login(
     access_token = create_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer","user": {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": user.role.value if hasattr(user.role, "value") else user.role,
+        "is_superuser": user.is_superuser,
+    },}
 
 
 @router.get("/login/google")
@@ -85,18 +91,32 @@ async def auth_google(request: Request, db: AsyncSession = Depends(get_async_db)
     # 4. Generate your internal application's high-privilege access token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
+        data={
+        "sub": user.email,
+        "id": user.id,
+        "name": user.name,
+        "role": user.role.value if hasattr(user.role, "value") else user.role,
+        "is_superuser": user.is_superuser,
+        }, expires_delta=access_token_expires
     )
     
     # 🎯 THE PURE JSON TEXT HAND-OFF FIX:
     # This strips away redirect strings and outputs raw token data directly to the view!
-    return {
-        "access_token": access_token, 
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "name": user.name,
-            "is_superuser": user.is_superuser
-        }
-    }
+    # return {
+    #     "access_token": access_token, 
+    #     "token_type": "bearer",
+    #     "user": {
+    #         "id": user.id,
+    #         "email": user.email,
+    #         "name": user.name,
+    #         "is_superuser": user.is_superuser
+    #     }
+    # }
+    return RedirectResponse(
+        url=(
+            f"{FRONTEND_URL}/auth/callback"
+            f"#access_token={access_token}"
+            f"&token_type=bearer"
+        ),
+        status_code=302
+    )

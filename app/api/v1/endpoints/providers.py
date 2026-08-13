@@ -16,7 +16,7 @@ router = APIRouter(prefix="/providers", tags=["providers"])
 async def get_providers(
     db: AsyncSession = Depends(get_async_db),
 ):
-    result = await db.execute(select(User).where(User.role == UserRole.PROVIDER))
+    result = await db.execute(select(User).where(User.role == UserRole.PROVIDER,User.is_superuser.is_(False)))
     providers = result.scalars().all()
     return providers
 
@@ -68,3 +68,18 @@ async def delete_provider(
         raise HTTPException(status_code=400, detail="Account is already deleted")
     await db.commit()
     return {"detail": "Account deactivated successfully"}
+
+@router.post("/me", response_model=UserRead)
+async def become_provider(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
+    if not current_user.is_active:
+        raise HTTPException(status_code=400, detail="Account is deactivated")
+
+    if current_user.role != UserRole.PROVIDER:
+        current_user.role = UserRole.PROVIDER
+        await db.commit()
+        await db.refresh(current_user)
+
+    return current_user

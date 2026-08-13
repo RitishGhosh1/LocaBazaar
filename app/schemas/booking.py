@@ -14,12 +14,13 @@ class BookingCreate(BookingBase):
     pass 
 
 class BookingRead(BookingBase):
-    id:int
+    id: int
+    user_id: int
     status: BookingStatus
 
     model_config = ConfigDict(from_attributes=True)
 
-class BookingListResponse(BookingBase):
+class BookingListResponse(BaseModel):
     items:list[BookingRead]
     total:int
     next_cursor:Optional[int]=None
