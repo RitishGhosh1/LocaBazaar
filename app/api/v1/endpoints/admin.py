@@ -159,6 +159,27 @@ async def admin_deactivate_user(
 
     return {"detail": f"User {user_id} has been suspended."}
 
+@router.patch("/users/{user_id}/reactivate")
+async def admin_reactivate_user(
+    user_id:int,
+    db:AsyncSession = Depends(get_async_db),
+    admin: User=Depends(get_superuser)
+):
+    result=await db.execute(select(User).where(User.id == user_id))
+    target_user = result.scalars().first()
+    if not target_user:
+        raise HTTPException(status_code=404,detail="User not found")
+    if target_user.is_active:
+        raise HTTPException(status_code=404,detail="User is already active")
+    target_user.is_active=True
+    await db.commit()
+    await db.refresh(target_user)
+    return {
+        "message":"User account reactivated successfully",
+        "user id":target_user.id,
+        "is_active":target_user.is_active
+    }
+    
 
 @router.delete("/users/{user_id}")
 async def admin_hard_delete_user(
