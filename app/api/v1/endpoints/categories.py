@@ -20,7 +20,7 @@ async def create_category(category_in:CategoryCreate, db:AsyncSession = Depends(
     db.add(new_category)
     await db.commit()
     await db.refresh(new_category)
-    await redis_cache.delete("categories:all")
+    await redis_cache.clear("categories:all")
     return new_category
 
 @router.get("/{category_id}", response_model=CategoryReadWithServices)

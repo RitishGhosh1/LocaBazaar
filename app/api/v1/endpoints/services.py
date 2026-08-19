@@ -31,6 +31,7 @@ async def create_service(
     db.add(db_service)
     await db.commit()
     await db.refresh(db_service)
+    await redis_cache.clear_pattern("services:q:*")
     return db_service
 
 @router.get("/mine", response_model=list[ServiceRead])
@@ -62,6 +63,8 @@ async def toggle_service_status(
     service.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(service)
+    await redis_cache.clear(f"service_id:{service_id}")
+    await redis_cache.clear_pattern("services:q:*")
     return service
 
 @router.get("/{service_id}",response_model=ServiceRead)
@@ -106,12 +109,12 @@ async def get_available_services(db:AsyncSession=Depends(get_async_db),
         query = query.where(Service.category_id == category_id)
 
     if category_name:
-        query=query.where(Category.name.ilike(f"&{category_name}"))
+        query=query.where(Category.name.ilike(f"%{category_name}%"))
     
     if max_price is not None:
-        query=query.where(Service.price<max_price)
+        query=query.where(Service.price<=max_price)
     if min_price is not None:
-        query=query.where(Service.price>min_price)
+        query=query.where(Service.price>=min_price)
     # Apply Pagination
     if cursor:
         query = query.where(Service.id > cursor)

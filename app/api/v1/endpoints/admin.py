@@ -143,19 +143,17 @@ async def admin_deactivate_user(
     await db.execute(
         update(Service).where(Service.owner_id == target_user.id).values(is_active=False)
     )
+
     await db.execute(
-        update(Booking)
-        .where((Booking.user_id == target_user.id) | (Booking.service_id.in_(select(Service.id)
-        .where(Service.owner_id == target_user.id))))
-        .values(status=BookingStatus.CANCELLED)
-    )
+        update(Booking).where((Booking.user_id == target_user.id) | (Booking.service_id.in_(select(Service.id).where(Service.owner_id == target_user.id))),
+                              Booking.status.in_([BookingStatus.PENDING,BookingStatus.CONFIRMED]))
+                              .values(status=BookingStatus.CANCELLED)
+        )
     target_user.is_active = False
     await db.commit()
 
-    try:
-        await redis_cache.clear()
-    except Exception:
-        pass
+    await redis_cache.clear_pattern("service_id:*")
+    await redis_cache.clear_pattern("services:q:*")
 
     return {"detail": f"User {user_id} has been suspended."}
 
@@ -170,16 +168,16 @@ async def admin_reactivate_user(
     if not target_user:
         raise HTTPException(status_code=404,detail="User not found")
     if target_user.is_active:
-        raise HTTPException(status_code=404,detail="User is already active")
+        raise HTTPException(status_code=400,detail="User is already active")
     target_user.is_active=True
     await db.commit()
     await db.refresh(target_user)
+
     return {
         "message":"User account reactivated successfully",
         "user id":target_user.id,
         "is_active":target_user.is_active
     }
-    
 
 @router.delete("/users/{user_id}")
 async def admin_hard_delete_user(
@@ -214,10 +212,8 @@ async def admin_hard_delete_user(
     await db.delete(target_user)
     await db.commit()
 
-    try:
-        await redis_cache.clear()
-    except Exception:
-        pass
+    await redis_cache.clear_pattern("service_id:*")
+    await redis_cache.clear_pattern("services:q:*")
 
     return {"detail": "Record permanently removed from database."}
 
@@ -235,10 +231,8 @@ async def admin_suspend_service(
     service.is_active = False
     await db.commit()
 
-    try:
-        await redis_cache.clear()
-    except Exception:
-        pass
+    await redis_cache.clear(f"service_id:{service_id}")
+    await redis_cache.clear_pattern("services:q:*")
 
     return {"detail": "Service suspended for review."}
 
@@ -256,10 +250,8 @@ async def admin_unsuspend_service(
     service.is_active = True
     await db.commit()
 
-    try:
-        await redis_cache.clear()
-    except Exception:
-        pass
+    await redis_cache.clear(f"service_id:{service_id}")
+    await redis_cache.clear_pattern("services:q:*")
 
     return {"detail": "Service unsuspended successfully."}
 
@@ -279,11 +271,6 @@ async def admin_update_booking_status(
     await db.commit()
     await db.refresh(booking)
 
-    try:
-        await redis_cache.clear()
-    except Exception:
-        pass
-
     return booking
 
 
@@ -297,12 +284,10 @@ async def admin_delete_review(
     review = result.scalars().first()
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
+    service_id = review.service_id
     await db.delete(review)
     await db.commit()
 
-    try:
-        await redis_cache.clear()
-    except Exception:
-        pass
+    await redis_cache.clear_pattern(f"reviews:svc:{service_id}:*")
 
     return {"detail": "Review deleted successfully."}

@@ -29,15 +29,8 @@ async def create_review(review: ReviewCreate, db: AsyncSession = Depends(get_asy
     db.add(new_review)
     await db.commit()
     await db.refresh(new_review)
+    await redis_cache.clear_pattern(f"reviews:svc:{new_review.service_id}:*")
     return new_review
-
-@router.get("/{review_id}", response_model=ReviewRead)
-async def get_review(review_id: int, db: AsyncSession = Depends(get_async_db)):
-    result=await db.execute(select(Review).where(Review.id == review_id))
-    review=result.scalars().first()
-    if not review:
-        raise HTTPException(status_code=404, detail="Review not found")
-    return review
 
 @router.get("/service/{service_id}", response_model=ReviewListResponse)
 async def get_reviews_for_service(
@@ -89,3 +82,11 @@ async def get_reviews_for_service(
     await redis_cache.set(cache_key, response_data, expire=600)
 
     return response_data
+
+@router.get("/{review_id}", response_model=ReviewRead)
+async def get_review(review_id: int, db: AsyncSession = Depends(get_async_db)):
+    result=await db.execute(select(Review).where(Review.id == review_id))
+    review=result.scalars().first()
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    return review
