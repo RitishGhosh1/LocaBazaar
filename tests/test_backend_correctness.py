@@ -199,3 +199,18 @@ async def test_admin_deactivate_user_cache_invalidation():
         assert mock_clear.call_count == 0
         mock_clear_pattern.assert_any_await("service_id:*")
         mock_clear_pattern.assert_any_await("services:q:*")
+
+@pytest.mark.asyncio
+async def test_delete_provider_cache_invalidation():
+    """Verify delete_provider clears 'service_id:*' and 'services:q:*'."""
+    from app.api.v1.endpoints.providers import delete_provider
+    
+    mock_user = MagicMock(id=3, role=UserRole.PROVIDER, is_active=True)
+    mock_db = AsyncMock()
+    
+    with patch.object(redis_cache, "clear_pattern", new_callable=AsyncMock) as mock_clear_pattern, \
+         patch.object(redis_cache, "clear", new_callable=AsyncMock) as mock_clear:
+        await delete_provider(db=mock_db, user=mock_user)
+        assert mock_clear.call_count == 0
+        mock_clear_pattern.assert_any_await("service_id:*")
+        mock_clear_pattern.assert_any_await("services:q:*")

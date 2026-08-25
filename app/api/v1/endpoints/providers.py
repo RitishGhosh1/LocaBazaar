@@ -9,6 +9,7 @@ from app.models.services import Service
 from app.schemas.user import UserRead, UserCreate
 from app.schemas.service import ServiceRead
 from app.core.security import get_password_hash
+from app.core.redis import redis_cache
 
 router = APIRouter(prefix="/providers", tags=["providers"])
 
@@ -67,6 +68,8 @@ async def delete_provider(
     else:
         raise HTTPException(status_code=400, detail="Account is already deleted")
     await db.commit()
+    await redis_cache.clear_pattern("service_id:*")
+    await redis_cache.clear_pattern("services:q:*")
     return {"detail": "Account deactivated successfully"}
 
 @router.post("/me", response_model=UserRead)

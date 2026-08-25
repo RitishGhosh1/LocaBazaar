@@ -1,7 +1,6 @@
 from datetime import datetime,UTC
 from typing import Optional
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, and_,func
 from sqlalchemy.orm import selectinload
@@ -88,9 +87,9 @@ async def get_available_services(db:AsyncSession=Depends(get_async_db),
                                  category_name:Optional[str]=None,
                                  min_price:Optional[float]=None,
                                  max_price:Optional[float]=None,
-                                 skip:int=0,limit:int=10,
-                                 cursor:Optional[int]=None):
-    cache_key=f"services:q:{q}:cat:{category_id}:s:{skip}:l:{limit}:c:{cursor}:category_name:{category_name}"
+                                 skip:int=Query(0,ge=0),limit:int=Query(10,ge=1,le=1000),
+                                 cursor:Optional[int]=Query(None,ge=0)):
+    cache_key=f"services:q:{q}:cat:{category_id}:min_p:{min_price}:max_p:{max_price}:s:{skip}:l:{limit}:c:{cursor}:category_name:{category_name}"
     cached_response = await redis_cache.get(cache_key)
     if cached_response:
         return cached_response
@@ -103,34 +102,32 @@ async def get_available_services(db:AsyncSession=Depends(get_async_db),
         .where(User.is_active == True) # The second gate
         .options(selectinload(Service.owner))
     )
+
     if q:
         query = query.where(Service.name.ilike(f"%{q}%"))
     if category_id:
         query = query.where(Service.category_id == category_id)
-
     if category_name:
         query=query.where(Category.name.ilike(f"%{category_name}%"))
-    
     if max_price is not None:
         query=query.where(Service.price<=max_price)
     if min_price is not None:
         query=query.where(Service.price>=min_price)
-    # Apply Pagination
+
+    subquery=query.subquery()
+    count_query=select(func.count()).select_from(subquery)
+    total_count=await db.scalar(count_query)
+
     if cursor:
         query = query.where(Service.id > cursor)
-    else:
+    if not cursor:
         query = query.offset(skip)
-    
-    query = query.limit(limit)
-    
+    query = query.order_by(Service.id).limit(limit)
+
     result = await db.execute(query)
     services = result.scalars().all()
-
-    # 4. METADATA & WRAPPING
-    total_count = await db.scalar(select(func.count()).select_from(Service).where(Service.is_active == True))
     next_cursor = services[-1].id if len(services) == limit else None
 
-    # Manually serialize to dicts for Redis
     items_as_dicts = [
         ServiceShortRead.model_validate(s).model_dump() 
         for s in services
@@ -140,10 +137,7 @@ async def get_available_services(db:AsyncSession=Depends(get_async_db),
         "total": total_count,
         "next_cursor": next_cursor
     }
-
-    # 5. SAVE TO REDIS (Short expire for searches, e.g., 5 mins)
     await redis_cache.set(cache_key, response_data, expire=300)
-
     return response_data
 
 
