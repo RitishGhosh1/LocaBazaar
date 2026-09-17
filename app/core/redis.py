@@ -15,14 +15,12 @@ class RedisManager:
         )
 
     async def set(self, key: str, value: Any, expire: int = 600):
-        """Store data in Redis as a JSON string"""
         try:
             await self.client.setex(key, expire, json.dumps(value))
         except Exception as e:
             print(f"❌ Redis Cache Write Operational Failure: {str(e)}")
 
     async def get(self, key: str) -> Optional[Any]:
-        """Retrieve data and convert back to Python object"""
         try:
             data = await self.client.get(key)
             if data:
@@ -31,17 +29,16 @@ class RedisManager:
             print(f"❌ Redis Cache Read Operational Failure: {str(e)}")
         return None
 
-    async def delete(self, key: str):
-        """Delete a specific key (Invalidation)"""
+    async def clear(self, key: str):
         try:
             await self.client.delete(key)
         except Exception as e:
             print(f"❌ Redis Cache Key Eviction Operational Failure: {str(e)}")
 
-    async def delete_pattern(self, pattern: str):
-        """Delete all keys matching a pattern (e.g., 'services:*')"""
+    async def clear_pattern(self, pattern: str):
         try:
-            keys = await self.client.keys(pattern)
+            # scan_iter streams matching keys without blocking Redis
+            keys = [key async for key in self.client.scan_iter(match=pattern)]
             if keys:
                 await self.client.delete(*keys)
         except Exception as e:

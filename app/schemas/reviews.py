@@ -5,6 +5,7 @@ class ReviewBase(BaseModel):
     rating: int = Field(..., ge=1, le=5, description="Rating must be between 1 and 5")
     comment: Optional[str] = Field(None, max_length=500)
     service_id: int
+    model_config = ConfigDict(from_attributes=True)
 
 class ReviewCreate(ReviewBase):
     pass
