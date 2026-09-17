@@ -11,6 +11,8 @@ from app.schemas.service import ServiceRead
 from app.core.security import get_password_hash
 from app.core.redis import redis_cache
 
+from app.services.email import queue_verification_email
+
 router = APIRouter(prefix="/providers", tags=["providers"])
 
 @router.get("/", response_model=list[UserRead])
@@ -21,23 +23,68 @@ async def get_providers(
     providers = result.scalars().all()
     return providers
 
+# @router.post("/", response_model=UserRead)
+# async def create_provider(
+#     provider_in: UserCreate,
+#     db: AsyncSession = Depends(get_async_db),
+# ):
+#     result = await db.execute(select(User).where(User.email == provider_in.email))
+#     existing_provider = result.scalars().first()
+#     if existing_provider:
+#         raise HTTPException(status_code=400, detail="Provider with this email already exists")
+#     provider_data = provider_in.model_dump()
+#     plain_password = provider_data.pop("password")
+#     hashed_password = get_password_hash(plain_password)
+#     db_provider = User(**provider_data, hashed_password=hashed_password, role=UserRole.PROVIDER)
+#     db.add(db_provider)
+#     await db.commit()
+#     await db.refresh(db_provider)
+#     return db_provider
+
 @router.post("/", response_model=UserRead)
 async def create_provider(
     provider_in: UserCreate,
     db: AsyncSession = Depends(get_async_db),
 ):
-    result = await db.execute(select(User).where(User.email == provider_in.email))
+    result = await db.execute(
+        select(User).where(User.email == provider_in.email)
+    )
+
     existing_provider = result.scalars().first()
+
     if existing_provider:
-        raise HTTPException(status_code=400, detail="Provider with this email already exists")
+        if existing_provider.is_verified:
+            raise HTTPException(
+                status_code=400,
+                detail="Provider with this email already exists!!",
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Provider with this email already exists but is not verified"
+            )
+
     provider_data = provider_in.model_dump()
+
     plain_password = provider_data.pop("password")
-    print(type(plain_password), repr(plain_password))
     hashed_password = get_password_hash(plain_password)
-    db_provider = User(**provider_data, hashed_password=hashed_password, role=UserRole.PROVIDER)
+
+    db_provider = User(
+        **provider_data,
+        hashed_password=hashed_password,
+        role=UserRole.PROVIDER,
+    )
+
     db.add(db_provider)
+
     await db.commit()
     await db.refresh(db_provider)
+
+    await queue_verification_email(
+        user_id=db_provider.id,
+        email=db_provider.email,
+    )
+
     return db_provider
 
 @router.get("/{provider_id}", response_model=list[ServiceRead])

@@ -21,5 +21,5 @@ class UserRead(UserBase): #What api will return to the client
     id: int
     role: UserRole
     is_active: bool
-
+    is_verified:bool
     model_config = ConfigDict(from_attributes=True)

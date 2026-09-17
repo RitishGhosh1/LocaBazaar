@@ -26,6 +26,7 @@ async def create_booking(
             Service.id == booking_in.service_id,
             Service.is_active == True,
             User.is_active == True,
+            User.is_verified == True,
         )
     )
     service = result.scalars().first()
@@ -33,6 +34,8 @@ async def create_booking(
         raise HTTPException(status_code=404, detail="Service not found or inactive")
     if user.role != UserRole.CUSTOMER:
         raise HTTPException(status_code=403, detail="Only customers can create bookings")
+    if not user.is_verified:
+        raise HTTPException(status_code=403, detail="Customer email must be verified to create bookings")
     if service.owner_id == user.id:
         raise HTTPException(status_code=400, detail="Cannot book your own service")
 

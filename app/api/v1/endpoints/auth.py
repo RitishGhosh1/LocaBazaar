@@ -9,9 +9,44 @@ from app.core.security import verify_password, create_access_token, ACCESS_TOKEN
 from datetime import timedelta
 from app.core.oauth import oauth
 from app.core.config import config
+from app.core.verification import verify_verification_token, generate_verification_token
 FRONTEND_URL=config.FRONTEND_URL
-
+from app.core.rabbitmq import rabbitmq_manager
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+@router.post("/test-rabbit")
+async def test_rabbit():
+    await rabbitmq_manager.publish({
+        "job_type": "test",
+        "message": "Hello RabbitMQ"
+    })
+    return {"message": "Message published"}
+
+@router.get("/verify-email")
+async def verify_email(token:str, db:AsyncSession=Depends(get_async_db)):
+    email=verify_verification_token(token)
+    if not email:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired verification token"
+        )
+    result = await db.execute(
+        select(User).where(User.email==email)
+    )
+    user=result.scalars().first()
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+    if user.is_verified:
+        return {"message":"Email already verified"}
+
+    user.is_verified=True
+    await db.commit()
+    await db.refresh(user)
+    return {"message":"Email verified successfully"}
+
 
 
 @router.post("/login")
@@ -24,18 +59,34 @@ async def login(
     if not user or not user.hashed_password or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     if not user.is_active:
-        raise HTTPException(status_code=403,detail="User account is not active")
+        raise HTTPException(status_code=403, detail="User account is not active")
+    if not user.is_verified:
+        raise HTTPException(status_code=403, detail="Please verify your email before logging in")
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    role_str = user.role.value if hasattr(user.role, "value") else user.role
     access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
+        data={
+            "sub": user.email,
+            "id": user.id,
+            "name": user.name,
+            "role": role_str,
+            "is_superuser": user.is_superuser,
+            "is_verified": user.is_verified,
+        },
+        expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer","user": {
-        "id": user.id,
-        "email": user.email,
-        "name": user.name,
-        "role": user.role.value if hasattr(user.role, "value") else user.role,
-        "is_superuser": user.is_superuser,
-    },}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": role_str,
+            "is_superuser": user.is_superuser,
+            "is_verified": user.is_verified,
+        },
+    }
 
 
 @router.get("/login/google")
@@ -72,7 +123,8 @@ async def auth_google(request: Request, db: AsyncSession = Depends(get_async_db)
             google_id=google_id,
             role=UserRole.CUSTOMER,
             is_active=True,
-            is_superuser=False
+            is_superuser=False,
+            is_verified=True
         )
         db.add(user)
         await db.commit()
@@ -84,6 +136,7 @@ async def auth_google(request: Request, db: AsyncSession = Depends(get_async_db)
         )
     elif not user.google_id:
         user.google_id = google_id
+        user.is_verified = True
         await db.commit()
         await db.refresh(user)
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -94,6 +147,7 @@ async def auth_google(request: Request, db: AsyncSession = Depends(get_async_db)
         "name": user.name,
         "role": user.role.value if hasattr(user.role, "value") else user.role,
         "is_superuser": user.is_superuser,
+        "is_verified": user.is_verified,
         }, expires_delta=access_token_expires
     )
     return RedirectResponse(

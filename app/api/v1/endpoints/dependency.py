@@ -44,7 +44,10 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
         raise credentials_exception
 
     if not user.is_active:
-        raise HTTPException(status_code=403,detail="User account is inactive")
+        raise HTTPException(status_code=403, detail="User account is inactive")
+
+    if not user.is_verified:
+        raise HTTPException(status_code=403, detail="User account is not verified")
 
     return user
 

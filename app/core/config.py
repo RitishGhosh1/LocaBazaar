@@ -11,6 +11,9 @@ class Config(BaseSettings):
     # 🎯 THE FIX: Expect a single production-grade connection string from the cloud
     # We leave the localhost fallback active exclusively for your local computer
     REDIS_URL: str = "redis://localhost:6379"
+
+    RABBITMQ_URL: str
+    
     
     GOOGLE_CLIENT_ID: str | None = None
     GOOGLE_CLIENT_SECRET: str | None = None
@@ -27,3 +30,15 @@ class TokenSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 token_settings = TokenSettings()
+
+class SMTPCONFIG(BaseSettings):
+    SMTP_HOST: str
+    SMTP_PORT: int
+    SMTP_USERNAME: str
+    SMTP_PASSWORD: str
+    SMTP_FROM_EMAIL: str
+    SMTP_FROM_NAME: str
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+smtpconfig = SMTPCONFIG()

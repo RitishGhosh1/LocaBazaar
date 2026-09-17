@@ -2,7 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from starlette.middleware.sessions import SessionMiddleware
-
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from app.core.rabbitmq import rabbitmq_manager
 # Import core routing maps
 from app.api.v1.api import api_router
 
@@ -14,13 +16,20 @@ from app.models.booking import Booking
 from app.db.session import engine
 from app.core.config import token_settings
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await rabbitmq_manager.connect()
+    yield
+    await rabbitmq_manager.close()
+
 # 1. INITIALIZE THE FASTAPI APP WITHOUT THE HARDCODED OAUTH DICTIONARY
 # We completely strip out `swagger_ui_init_oauth`. 
 # This forces the Swagger UI padlock to request an explicit Client ID input box from the user.
 app = FastAPI(
     title="LocaBazaar API", 
     version="1.0.0",
-    description="Decoupled Standalone API Platform supporting Native and Dynamic Google OAuth Flows"
+    description="Decoupled Standalone API Platform supporting Native and Dynamic Google OAuth Flows",
+    lifespan=lifespan
 )
 
 origins = [

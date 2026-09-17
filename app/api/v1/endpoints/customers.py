@@ -8,25 +8,72 @@ from app.models.services import Service
 from app.schemas.user import UserRead, UserCreate
 from app.schemas.service import ServiceRead
 from app.core.security import get_password_hash
+from app.services.email import queue_verification_email
 
 router = APIRouter(prefix="/customers", tags=["customers"])
+
+# @router.post("/", response_model=UserRead)
+# async def create_customer(
+#     customer_in: UserCreate,
+#     db: AsyncSession = Depends(get_async_db),
+# ):
+#     result = await db.execute(select(User).where(User.email == customer_in.email))
+#     existing_customer = result.scalars().first()
+#     if existing_customer:
+#         raise HTTPException(status_code=400, detail="Customer with this email already exists")
+#     customer_data = customer_in.model_dump()
+#     plain_password = customer_data.pop("password")
+#     hashed_password = get_password_hash(plain_password)
+#     db_customer = User(**customer_data, hashed_password=hashed_password, role=UserRole.CUSTOMER)
+#     db.add(db_customer)
+#     await db.commit()
+#     await db.refresh(db_customer)
+    
+#     return db_customer
 
 @router.post("/", response_model=UserRead)
 async def create_customer(
     customer_in: UserCreate,
     db: AsyncSession = Depends(get_async_db),
 ):
-    result = await db.execute(select(User).where(User.email == customer_in.email))
+    result = await db.execute(
+        select(User).where(User.email == customer_in.email)
+    )
+
     existing_customer = result.scalars().first()
+
     if existing_customer:
-        raise HTTPException(status_code=400, detail="Customer with this email already exists")
+        if existing_customer.is_verified:
+            raise HTTPException(
+                status_code=400,
+                detail="Provider with this email already exists!!",
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Provider with this email already exists but is not verified"
+            )
     customer_data = customer_in.model_dump()
+
     plain_password = customer_data.pop("password")
     hashed_password = get_password_hash(plain_password)
-    db_customer = User(**customer_data, hashed_password=hashed_password, role=UserRole.CUSTOMER)
+
+    db_customer = User(
+        **customer_data,
+        hashed_password=hashed_password,
+        role=UserRole.CUSTOMER,
+    )
+
     db.add(db_customer)
+
     await db.commit()
     await db.refresh(db_customer)
+
+    await queue_verification_email(
+        user_id=db_customer.id,
+        email=db_customer.email,
+    )
+
     return db_customer
 
 @router.delete("/me", status_code=204)

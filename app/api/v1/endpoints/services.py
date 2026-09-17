@@ -24,6 +24,8 @@ async def create_service(
 ):
     if user.is_active == False:
         raise HTTPException(status_code=403, detail="User is not active")
+    if not user.is_verified:
+        raise HTTPException(status_code=403, detail="User is not verified")
     if user.role != UserRole.PROVIDER:
         raise HTTPException(status_code=403, detail="User is not a provider")
     db_service = Service(**service_in.model_dump(), owner_id=user.id)
@@ -100,6 +102,7 @@ async def get_available_services(db:AsyncSession=Depends(get_async_db),
         .join(Category, Service.category_id==Category.id)
         .where(Service.is_active == True)
         .where(User.is_active == True) # The second gate
+        .where(User.is_verified == True) # The third gate
         .options(selectinload(Service.owner))
     )
 

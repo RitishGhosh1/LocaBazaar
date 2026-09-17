@@ -28,7 +28,7 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(default=UserRole.CUSTOMER)
     is_active: Mapped[bool] = mapped_column(default=True)
     is_superuser: Mapped[bool] = mapped_column(default=False)
-    
+    is_verified: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.utcnow())
     
     # Relationship: A user can own many services (if they are a provider)
