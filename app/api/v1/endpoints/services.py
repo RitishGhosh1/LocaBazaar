@@ -10,7 +10,7 @@ from app.models.category import Category
 from app.models.user import User, UserRole
 from app.models.reviews import Review
 from app.schemas.user import UserRead
-from app.schemas.service import ServiceCreate, ServiceRead, ServiceShortRead,ServiceListResponse
+from app.schemas.service import ServiceCreate, ServiceRead, ServiceShortRead, ServiceListResponse, ServiceUpdate
 from app.api.v1.endpoints.dependency import get_current_user
 from app.core.redis import redis_cache
 
@@ -68,7 +68,58 @@ async def toggle_service_status(
     await redis_cache.clear_pattern("services:q:*")
     return service
 
-@router.get("/{service_id}",response_model=ServiceRead)
+@router.patch("/{service_id}", response_model=ServiceRead)
+async def update_service(
+    service_id: int,
+    service_update: ServiceUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Service).options(selectinload(Service.reviews)).where(Service.id == service_id)
+    )
+    service = result.scalars().first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+    if service.owner_id != user.id and not user.is_superuser:
+        raise HTTPException(status_code=403, detail="Not authorized to edit this service")
+
+    update_data = service_update.model_dump(exclude_unset=True)
+    if "category_id" in update_data and update_data["category_id"] is not None:
+        cat_check = await db.execute(select(Category).where(Category.id == update_data["category_id"]))
+        if not cat_check.scalars().first():
+            raise HTTPException(status_code=400, detail="Invalid category ID")
+
+    for key, value in update_data.items():
+        setattr(service, key, value)
+
+    service.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(service)
+    await redis_cache.clear(f"service_id:{service_id}")
+    await redis_cache.clear_pattern("services:q:*")
+    return service
+
+@router.delete("/{service_id}", status_code=204)
+async def delete_service(
+    service_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Service).where(Service.id == service_id))
+    service = result.scalars().first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+    if service.owner_id != user.id and not user.is_superuser:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this service")
+
+    await db.delete(service)
+    await db.commit()
+    await redis_cache.clear(f"service_id:{service_id}")
+    await redis_cache.clear_pattern("services:q:*")
+    return None
+
+@router.get("/{service_id}", response_model=ServiceRead)
 async def get_service_details(service_id:int,db:AsyncSession=Depends(get_async_db)):
     cache_key=f"service_id:{service_id}"
     cached_data=await redis_cache.get(cache_key)

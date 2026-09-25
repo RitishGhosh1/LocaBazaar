@@ -23,11 +23,12 @@ def test_tampered_token():
 
     token = generate_verification_token(email)
 
-    tampered_token = token[:-1] + "x"
+    # Corrupt the signature
+    tampered_token = token[:-5] + ("xxxxx" if not token.endswith("xxxxx") else "yyyyy")
 
     result = verify_verification_token(tampered_token)
 
-    assert result == email
+    assert result is None
 
 from app.core.security import create_access_token
 
@@ -43,4 +44,4 @@ def test_access_token_rejected():
 
     result = verify_verification_token(token)
 
-    assert result == "test@example.com"
+    assert result is None

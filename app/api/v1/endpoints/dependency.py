@@ -46,10 +46,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
     if not user.is_active:
         raise HTTPException(status_code=403, detail="User account is inactive")
 
-    if not user.is_verified:
-        raise HTTPException(status_code=403, detail="User account is not verified")
-
     return user
+
+async def get_current_verified_user(current_user: User = Depends(get_current_user)):
+    if not current_user.is_verified:
+        raise HTTPException(status_code=403, detail="Please verify your email before performing this action")
+    return current_user
 
 async def get_current_active_superuser(current_user: User = Depends(get_current_user)):
     if not current_user.is_superuser:

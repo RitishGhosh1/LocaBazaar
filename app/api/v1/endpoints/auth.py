@@ -10,17 +10,20 @@ from datetime import timedelta
 from app.core.oauth import oauth
 from app.core.config import config
 from app.core.verification import verify_verification_token, generate_verification_token
+from app.api.v1.endpoints.dependency import get_current_user
+from app.schemas.user import UserRead, UserUpdate
+from app.services.email import queue_verification_email
 FRONTEND_URL=config.FRONTEND_URL
 from app.core.rabbitmq import rabbitmq_manager
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-@router.post("/test-rabbit")
-async def test_rabbit():
-    await rabbitmq_manager.publish({
-        "job_type": "test",
-        "message": "Hello RabbitMQ"
-    })
-    return {"message": "Message published"}
+# @router.post("/test-rabbit")
+# async def test_rabbit():
+#     await rabbitmq_manager.publish({
+#         "job_type": "test",
+#         "message": "Hello RabbitMQ"
+#     })
+#     return {"message": "Message published"}
 
 @router.get("/verify-email")
 async def verify_email(token:str, db:AsyncSession=Depends(get_async_db)):
@@ -47,7 +50,18 @@ async def verify_email(token:str, db:AsyncSession=Depends(get_async_db)):
     await db.refresh(user)
     return {"message":"Email verified successfully"}
 
+@router.post("/verify-email")
+async def resend_verification_email(
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.is_verified:
+        return {"message": "Email already verified"}
 
+    await queue_verification_email(
+        user_id=current_user.id,
+        email=current_user.email,
+    )
+    return {"message": "Verification email sent successfully"}
 
 @router.post("/login")
 async def login(
@@ -60,8 +74,7 @@ async def login(
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="User account is not active")
-    if not user.is_verified:
-        raise HTTPException(status_code=403, detail="Please verify your email before logging in")
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     role_str = user.role.value if hasattr(user.role, "value") else user.role
     access_token = create_access_token(
@@ -82,12 +95,40 @@ async def login(
             "id": user.id,
             "email": user.email,
             "name": user.name,
+            "phone": user.phone,
+            "bio": user.bio,
             "role": role_str,
             "is_superuser": user.is_superuser,
             "is_verified": user.is_verified,
         },
     }
 
+@router.get("/me", response_model=UserRead)
+async def get_my_profile(
+    current_user: User = Depends(get_current_user),
+):
+    return current_user
+
+@router.patch("/me", response_model=UserRead)
+async def update_my_profile(
+    user_update: UserUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    update_data = user_update.model_dump(exclude_unset=True)
+    if "name" in update_data and update_data["name"] is not None:
+        trimmed_name = update_data["name"].strip()
+        if not trimmed_name:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+        current_user.name = trimmed_name
+    if "phone" in update_data:
+        current_user.phone = update_data["phone"].strip() if update_data["phone"] else None
+    if "bio" in update_data:
+        current_user.bio = update_data["bio"].strip() if update_data["bio"] else None
+
+    await db.commit()
+    await db.refresh(current_user)
+    return current_user
 
 @router.get("/login/google")
 async def login_google(request: Request):

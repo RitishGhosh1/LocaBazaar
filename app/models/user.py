@@ -25,6 +25,7 @@ class User(Base):
     hashed_password: Mapped[str | None] = mapped_column(nullable=True)
     google_id: Mapped[str | None] = mapped_column(String, unique=True, index=True, nullable=True)
     phone: Mapped[str | None] = mapped_column(String, nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
     role: Mapped[UserRole] = mapped_column(default=UserRole.CUSTOMER)
     is_active: Mapped[bool] = mapped_column(default=True)
     is_superuser: Mapped[bool] = mapped_column(default=False)

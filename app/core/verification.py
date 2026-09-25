@@ -12,9 +12,7 @@ def generate_verification_token(email: str) -> str:
         "sub": email,
         "type": "email_verification",
         "iat": now,
-        "exp": now + timedelta(
-            minutes=token_settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        ),
+        "exp": now + timedelta(hours=24),
     }
 
     return jwt.encode(

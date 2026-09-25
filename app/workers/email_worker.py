@@ -93,7 +93,8 @@ LocaBazaar"""
 </html>"""
 
         try:
-            send_email(
+            await asyncio.to_thread(
+                send_email,
                 to_email=email,
                 subject="Verify Your LocaBazaar Email",
                 body=body,

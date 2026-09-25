@@ -18,6 +18,7 @@ class Service(Base):
     description: Mapped[str | None] = mapped_column(nullable=True)
     price: Mapped[int] = mapped_column(nullable=False) # Mandated for V1
     category_id:Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
+    image_url: Mapped[str | None] = mapped_column(nullable=True)
     __table_args__ = (
         CheckConstraint('price >= 0', name='check_price_positive'),
     )

@@ -7,7 +7,7 @@ from app.core.config import config
 class RedisManager:
     def __init__(self):
         # 🎯 THE FIX: Initialize the connection string dynamically from your Pydantic layer
-        print(f"📡 Initializing asynchronous Redis cache client framework via network token configuration...")
+        print("Initializing asynchronous Redis cache client framework via network token configuration...")
         self.client = redis.Redis.from_url(
             config.REDIS_URL,
             decode_responses=True,
@@ -18,7 +18,7 @@ class RedisManager:
         try:
             await self.client.setex(key, expire, json.dumps(value))
         except Exception as e:
-            print(f"❌ Redis Cache Write Operational Failure: {str(e)}")
+            print(f"[Error] Redis Cache Write Operational Failure: {str(e)}")
 
     async def get(self, key: str) -> Optional[Any]:
         try:
@@ -26,14 +26,14 @@ class RedisManager:
             if data:
                 return json.loads(data)
         except Exception as e:
-            print(f"❌ Redis Cache Read Operational Failure: {str(e)}")
+            print(f"[Error] Redis Cache Read Operational Failure: {str(e)}")
         return None
 
     async def clear(self, key: str):
         try:
             await self.client.delete(key)
         except Exception as e:
-            print(f"❌ Redis Cache Key Eviction Operational Failure: {str(e)}")
+            print(f"[Error] Redis Cache Key Eviction Operational Failure: {str(e)}")
 
     async def clear_pattern(self, pattern: str):
         try:
@@ -42,7 +42,7 @@ class RedisManager:
             if keys:
                 await self.client.delete(*keys)
         except Exception as e:
-            print(f"❌ Redis Cache Pattern Eviction Operational Failure: {str(e)}")
+            print(f"[Error] Redis Cache Pattern Eviction Operational Failure: {str(e)}")
 
 # Initialize a single global instance mapping structure to handle shared system pools safely
 redis_cache = RedisManager()

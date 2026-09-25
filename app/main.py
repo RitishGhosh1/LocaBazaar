@@ -101,7 +101,27 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
+# Ensure uploads directory exists and mount static files
+import os
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
+
+upload_dir = os.path.join(os.getcwd(), "uploads")
+os.makedirs(upload_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
+
 # This creates the tables on startup if they don't exist
 Base.metadata.create_all(bind=engine)
+
+# Backward-compatible column migration for existing tables
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE reviews ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();"))
+        conn.execute(text("ALTER TABLE reviews ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR;"))
+        conn.execute(text("ALTER TABLE services ADD COLUMN IF NOT EXISTS image_url VARCHAR;"))
+        conn.commit()
+except Exception:
+    pass
 
 app.include_router(api_router, prefix="/api/v1")

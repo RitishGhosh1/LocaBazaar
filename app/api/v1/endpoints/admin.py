@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, update, delete
+from sqlalchemy.orm import selectinload
 from app.db.session import get_async_db
 from app.models.user import User, UserRole
 from app.models.services import Service
@@ -103,7 +104,13 @@ async def admin_list_bookings(
     count_stmt = select(func.count()).select_from(Booking)
     total = (await db.execute(count_stmt)).scalar() or 0
 
-    stmt = select(Booking).order_by(Booking.id.desc()).offset(skip).limit(limit)
+    stmt = (
+        select(Booking)
+        .options(selectinload(Booking.services), selectinload(Booking.user))
+        .order_by(Booking.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     bookings = (await db.execute(stmt)).scalars().all()
     items = [BookingRead.model_validate(b) for b in bookings]
     return BookingListResponse(items=items, total=total, next_cursor=None)
@@ -263,15 +270,24 @@ async def admin_update_booking_status(
     db: AsyncSession = Depends(get_async_db),
     admin: User = Depends(get_superuser),
 ):
-    result = await db.execute(select(Booking).where(Booking.id == booking_id))
+    result = await db.execute(
+        select(Booking)
+        .options(selectinload(Booking.services), selectinload(Booking.user))
+        .where(Booking.id == booking_id)
+    )
     booking = result.scalars().first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
     booking.status = status_in.status
     await db.commit()
-    await db.refresh(booking)
-
-    return booking
+    
+    # Reload with relationships
+    result = await db.execute(
+        select(Booking)
+        .options(selectinload(Booking.services), selectinload(Booking.user))
+        .where(Booking.id == booking_id)
+    )
+    return result.scalars().first()
 
 
 @router.delete("/reviews/{review_id}")

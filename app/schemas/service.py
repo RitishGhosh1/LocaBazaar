@@ -7,9 +7,17 @@ class ServiceBase(BaseModel):
     category_id: int
     description: Optional[str] = None
     price: int
+    image_url: Optional[str] = None
 
 class ServiceCreate(ServiceBase):
     pass
+
+class ServiceUpdate(BaseModel):
+    name: Optional[str] = None
+    category_id: Optional[int] = None
+    description: Optional[str] = None
+    price: Optional[int] = None
+    image_url: Optional[str] = None
 
 class ServiceShortRead(ServiceBase):
     id:int
