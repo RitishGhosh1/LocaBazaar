@@ -1,4 +1,5 @@
 from datetime import datetime,UTC
+import os
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +10,7 @@ from app.models.services import Service
 from app.models.category import Category
 from app.models.user import User, UserRole
 from app.models.reviews import Review
+from app.models.uploads import Upload
 from app.schemas.user import UserRead
 from app.schemas.service import ServiceCreate, ServiceRead, ServiceShortRead, ServiceListResponse, ServiceUpdate
 from app.api.v1.endpoints.dependency import get_current_user
@@ -28,10 +30,32 @@ async def create_service(
         raise HTTPException(status_code=403, detail="User is not verified")
     if user.role != UserRole.PROVIDER:
         raise HTTPException(status_code=403, detail="User is not a provider")
-    db_service = Service(**service_in.model_dump(), owner_id=user.id)
+    image_ids = list(dict.fromkeys(service_in.image_ids))
+    if image_ids:
+        image_result = await db.execute(
+            select(Upload).where(
+                Upload.id.in_(image_ids),
+                Upload.owner_id == user.id,
+                Upload.purpose == "service",
+                Upload.service_id.is_(None),
+            ).with_for_update()
+        )
+        uploads_by_id = {upload.id: upload for upload in image_result.scalars().all()}
+        if len(uploads_by_id) != len(image_ids):
+            raise HTTPException(
+                status_code=400,
+                detail="One or more uploaded service images are invalid or already in use.",
+            )
+        service_images = [uploads_by_id[image_id] for image_id in image_ids]
+    else:
+        service_images = []
+
+    service_data = service_in.model_dump(exclude={"image_ids"})
+    if service_images:
+        service_data["image_url"] = service_images[0].url
+    db_service = Service(**service_data, owner_id=user.id, images=service_images)
     db.add(db_service)
     await db.commit()
-    await db.refresh(db_service)
     await redis_cache.clear_pattern("services:q:*")
     return db_service
 
@@ -40,7 +64,9 @@ async def get_my_services(
     db: AsyncSession = Depends(get_async_db),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(Service).where(Service.owner_id == user.id).options(selectinload(Service.reviews))
+    stmt = select(Service).where(Service.owner_id == user.id).options(
+        selectinload(Service.reviews), selectinload(Service.images)
+    )
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -53,7 +79,7 @@ async def toggle_service_status(
 ):
     
     result = await db.execute(
-        select(Service).where(Service.id == service_id)
+        select(Service).options(selectinload(Service.reviews), selectinload(Service.images)).where(Service.id == service_id)
     )
     service = result.scalars().first()
     if not service:
@@ -76,7 +102,7 @@ async def update_service(
     user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Service).options(selectinload(Service.reviews)).where(Service.id == service_id)
+        select(Service).options(selectinload(Service.reviews), selectinload(Service.images)).where(Service.id == service_id)
     )
     service = result.scalars().first()
     if not service:
@@ -106,15 +132,23 @@ async def delete_service(
     db: AsyncSession = Depends(get_async_db),
     user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Service).where(Service.id == service_id))
+    result = await db.execute(
+        select(Service).options(selectinload(Service.images)).where(Service.id == service_id)
+    )
     service = result.scalars().first()
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
     if service.owner_id != user.id and not user.is_superuser:
         raise HTTPException(status_code=403, detail="Not authorized to delete this service")
 
+    image_filenames = [image.filename for image in service.images]
     await db.delete(service)
     await db.commit()
+    for filename in image_filenames:
+        try:
+            os.remove(os.path.join(os.getcwd(), "uploads", filename))
+        except FileNotFoundError:
+            pass
     await redis_cache.clear(f"service_id:{service_id}")
     await redis_cache.clear_pattern("services:q:*")
     return None
@@ -125,7 +159,11 @@ async def get_service_details(service_id:int,db:AsyncSession=Depends(get_async_d
     cached_data=await redis_cache.get(cache_key)
     if cached_data:
         return cached_data
-    result=await db.execute(select(Service).options(selectinload(Service.reviews)).where(Service.id==service_id))
+    result=await db.execute(
+        select(Service)
+        .options(selectinload(Service.reviews), selectinload(Service.images))
+        .where(Service.id == service_id)
+    )
     service=result.scalars().first()
     if not service:
         raise HTTPException(status_code=404, detail="SERVICE NOT FOUND")
@@ -154,7 +192,7 @@ async def get_available_services(db:AsyncSession=Depends(get_async_db),
         .where(Service.is_active == True)
         .where(User.is_active == True) # The second gate
         .where(User.is_verified == True) # The third gate
-        .options(selectinload(Service.owner))
+        .options(selectinload(Service.owner), selectinload(Service.images))
     )
 
     if q:

@@ -104,7 +104,7 @@ async def get_provider_services(
         raise HTTPException(status_code=404, detail="Provider not found")
 
     service_result = await db.execute(
-        select(Service).where(Service.owner_id == provider_id)
+        select(Service).options(selectinload(Service.images), selectinload(Service.reviews)).where(Service.owner_id == provider_id)
     )
     provider_services = service_result.scalars().all()
     return provider_services

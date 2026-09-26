@@ -1,5 +1,6 @@
 from sqlalchemy.orm import selectinload
 from app.models.category import Category
+from app.models.services import Service
 from app.schemas.category import CategoryRead,CategoryReadWithServices,CategoryCreate
 from app.api.v1.endpoints.dependency import get_current_active_superuser
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +26,14 @@ async def create_category(category_in:CategoryCreate, db:AsyncSession = Depends(
 
 @router.get("/{category_id}", response_model=CategoryReadWithServices)
 async def get_category(category_id:int,db:AsyncSession = Depends(get_async_db)):
-    result=await db.execute(select(Category).options(selectinload(Category.services)).where(Category.id == category_id))
+    result=await db.execute(
+        select(Category)
+        .options(
+            selectinload(Category.services).selectinload(Service.images),
+            selectinload(Category.services).selectinload(Service.reviews),
+        )
+        .where(Category.id == category_id)
+    )
     category=result.scalars().first()
     if not category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")

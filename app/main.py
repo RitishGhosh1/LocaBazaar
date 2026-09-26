@@ -13,8 +13,9 @@ from app.models.base import Base
 from app.models.user import User
 from app.models.services import Service
 from app.models.booking import Booking 
+from app.models.uploads import Upload
 from app.db.session import engine
-from app.core.config import token_settings
+from app.core.config import config, token_settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,7 +34,9 @@ app = FastAPI(
 )
 
 origins = [
-    "*",  # Universal open platform allowance for API consumers
+    origin.strip().rstrip("/")
+    for origin in (config.CORS_ORIGINS or config.FRONTEND_URL).split(",")
+    if origin.strip()
 ]
 
 app.add_middleware(
@@ -46,7 +49,8 @@ app.add_middleware(
 
 app.add_middleware(
     SessionMiddleware,
-    secret_key=token_settings.SECRET_KEY
+    secret_key=token_settings.SECRET_KEY,
+    https_only=config.FRONTEND_URL.startswith("https://"),
 )
 
 # 2. OVERRIDE OPENAPI LAYER TO ENFORCE EXPLICIT INPUT PARAMETERS

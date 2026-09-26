@@ -3,4 +3,5 @@ from app.models.user import User
 from app.models.services import Service
 from app.models.booking import Booking
 from app.models.category import Category
-from app.models.reviews import Review 
+from app.models.reviews import Review
+from app.models.uploads import Upload

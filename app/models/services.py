@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from app.models.booking import Booking
     from app.models.category import Category
     from app.models.reviews import Review
+    from app.models.uploads import Upload
 
 class Service(Base):
     __tablename__ = "services"
@@ -34,3 +35,7 @@ class Service(Base):
     bookings: Mapped[list["Booking"]] = relationship(back_populates="services")
     category:Mapped["Category"] = relationship(back_populates="services")
     reviews: Mapped[list["Review"]] = relationship(back_populates="service")
+    images: Mapped[list["Upload"]] = relationship(
+        back_populates="service", cascade="all, delete-orphan", passive_deletes=True,
+        order_by="Upload.id",
+    )

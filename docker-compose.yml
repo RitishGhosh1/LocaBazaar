@@ -1,14 +1,11 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: locabazaar-db
-    restart: always
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_USER: ${DB_USER:-locabazaar}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       POSTGRES_DB: ${DB_NAME:-locabazaar}
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -22,10 +19,7 @@ services:
 
   redis:
     image: redis:alpine
-    container_name: locabazaar-redis
-    restart: always
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
     volumes:
       - redis_data:/data
     networks:
@@ -38,19 +32,15 @@ services:
       start_period: 5s
 
   rabbitmq:
-    image: rabbitmq:4-management
-    container_name: locabazaar-rabbitmq
-    restart: always
-    ports:
-      - "5672:5672"
-      - "15672:15672"
+    image: rabbitmq:4-alpine
+    restart: unless-stopped
     networks:
       - locabazaar-net
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:?Set RABBITMQ_PASS in .env}
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -60,29 +50,32 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: locabazaar-app
-    restart: always
+    restart: unless-stopped
     env_file:
       - .env
     environment:
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_USER=${DB_USER:-locabazaar}
+      - DB_PASSWORD=${DB_PASSWORD:?Set DB_PASSWORD in .env}
       - DB_NAME=${DB_NAME:-locabazaar}
       - DB_HOST=db
       - DB_PORT=5432
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:?Set RABBITMQ_USER in .env}:${RABBITMQ_PASS:?Set RABBITMQ_PASS in .env}@rabbitmq:5672/
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
-      - SECRET_KEY=${SECRET_KEY:-SUPER_SECRET_KEY_CHANGE_ME}
+      - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY in .env}
       - ALGORITHM=${ALGORITHM:-HS256}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - GOOGLE_CONF_URL=${GOOGLE_CONF_URL:-https://accounts.google.com/.well-known/openid-configuration}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+    volumes:
+      - uploads_data:/app/uploads
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
     networks:
       - locabazaar-net
     depends_on:
@@ -97,12 +90,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: locabazaar-email-worker
-    restart: always
+    restart: unless-stopped
     env_file:
       - .env
     environment:
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:?Set RABBITMQ_USER in .env}:${RABBITMQ_PASS:?Set RABBITMQ_PASS in .env}@rabbitmq:5672/
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
     command: python -m app.workers.email_worker
     networks:
@@ -111,6 +103,25 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  caddy:
+    profiles: ["production"]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - locabazaar-net
+    depends_on:
+      - app
+
 networks:
   locabazaar-net:
     driver: bridge
@@ -118,3 +129,6 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  uploads_data:
+  caddy_data:
+  caddy_config:

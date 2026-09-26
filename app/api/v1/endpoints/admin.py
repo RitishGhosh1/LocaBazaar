@@ -88,7 +88,7 @@ async def admin_list_services(
 ):
     count_stmt = select(func.count()).select_from(Service)
     total = (await db.execute(count_stmt)).scalar() or 0
-    stmt = select(Service).order_by(Service.id.desc()).offset(skip).limit(limit)
+    stmt = select(Service).options(selectinload(Service.images)).order_by(Service.id.desc()).offset(skip).limit(limit)
     services = (await db.execute(stmt)).scalars().all()
     items = [ServiceShortRead.model_validate(s) for s in services]
     return ServiceListResponse(items=items, total=total, next_cursor=None)

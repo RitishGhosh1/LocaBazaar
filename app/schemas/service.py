@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
 from app.schemas.user import UserBase
 
@@ -9,8 +9,14 @@ class ServiceBase(BaseModel):
     price: int
     image_url: Optional[str] = None
 
+class UploadRead(BaseModel):
+    id: int
+    url: str
+    filename: str
+    model_config = ConfigDict(from_attributes=True)
+
 class ServiceCreate(ServiceBase):
-    pass
+    image_ids: list[int] = Field(default_factory=list, max_length=10)
 
 class ServiceUpdate(BaseModel):
     name: Optional[str] = None
@@ -23,13 +29,15 @@ class ServiceShortRead(ServiceBase):
     id:int
     owner_id:int
     is_active: bool
+    images: list[UploadRead] = Field(default_factory=list)
     model_config=ConfigDict(from_attributes=True)
 
 class ServiceRead(ServiceBase):
     id:int
     owner_id:int
     is_active: bool
-    reviews:list["ReviewRead"] = []
+    reviews:list["ReviewRead"] = Field(default_factory=list)
+    images: list[UploadRead] = Field(default_factory=list)
     model_config=ConfigDict(from_attributes=True)
 
 from typing import List, Optional
