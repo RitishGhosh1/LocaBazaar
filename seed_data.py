@@ -21,10 +21,17 @@ from app.models.services import Service
 from app.models.reviews import Review
 from app.models.booking import Booking, BookingStatus
 from app.core.security import get_password_hash
+from app.core.config import config
 from app.core.redis import redis_cache
 
 SUPERADMIN_EMAIL = "admin@locabazaar.com"
-SUPERADMIN_PASSWORD = "AdminPassword123!"
+SUPERADMIN_PASSWORD = config.SEED_SUPERADMIN_PASSWORD
+DEMO_PASSWORD = config.SEED_DEMO_PASSWORD
+
+if not SUPERADMIN_PASSWORD or not DEMO_PASSWORD:
+    raise SystemExit(
+        "Set SEED_SUPERADMIN_PASSWORD and SEED_DEMO_PASSWORD in .env before seeding."
+    )
 
 USERS_DATA = [
     {
@@ -42,7 +49,7 @@ USERS_DATA = [
     {
         "name": "SparkleClean Pro Services",
         "email": "sparkleclean@locabazaar.com",
-        "password": "Password123!",
+        "password": DEMO_PASSWORD,
         "role": UserRole.PROVIDER,
         "is_active": True,
         "is_superuser": False,
@@ -54,7 +61,7 @@ USERS_DATA = [
     {
         "name": "AquaFix & Plumbing Co.",
         "email": "aquafix@locabazaar.com",
-        "password": "Password123!",
+        "password": DEMO_PASSWORD,
         "role": UserRole.PROVIDER,
         "is_active": True,
         "is_superuser": False,
@@ -66,7 +73,7 @@ USERS_DATA = [
     {
         "name": "VoltMasters Electricals",
         "email": "voltmasters@locabazaar.com",
-        "password": "Password123!",
+        "password": DEMO_PASSWORD,
         "role": UserRole.PROVIDER,
         "is_active": True,
         "is_superuser": False,
@@ -78,7 +85,7 @@ USERS_DATA = [
     {
         "name": "Glow & Spa Studio",
         "email": "glowspa@locabazaar.com",
-        "password": "Password123!",
+        "password": DEMO_PASSWORD,
         "role": UserRole.PROVIDER,
         "is_active": True,
         "is_superuser": False,
@@ -90,7 +97,7 @@ USERS_DATA = [
     {
         "name": "Aarav Sharma",
         "email": "aarav.sharma@example.com",
-        "password": "Password123!",
+        "password": DEMO_PASSWORD,
         "role": UserRole.CUSTOMER,
         "is_active": True,
         "is_superuser": False,
@@ -102,7 +109,7 @@ USERS_DATA = [
     {
         "name": "Meera Patel",
         "email": "meera.patel@example.com",
-        "password": "Password123!",
+        "password": DEMO_PASSWORD,
         "role": UserRole.CUSTOMER,
         "is_active": True,
         "is_superuser": False,
