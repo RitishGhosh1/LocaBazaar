@@ -21,24 +21,18 @@ from app.models.services import Service
 from app.models.reviews import Review
 from app.models.booking import Booking, BookingStatus
 from app.core.security import get_password_hash
-from app.core.config import config
 from app.core.redis import redis_cache
 
-SUPERADMIN_EMAIL = "admin@locabazaar.com"
-SUPERADMIN_PASSWORD = config.SEED_SUPERADMIN_PASSWORD
-DEMO_PASSWORD = config.SEED_DEMO_PASSWORD
-
-if not SUPERADMIN_PASSWORD or not DEMO_PASSWORD:
-    raise SystemExit(
-        "Set SEED_SUPERADMIN_PASSWORD and SEED_DEMO_PASSWORD in .env before seeding."
-    )
+SUPERADMIN_EMAIL = "ritish.ghosh77@gmail.com"
+SUPERADMIN_PASSWORD = "AdminPassword123!"
+DEMO_PASSWORD = "Password123!"
 
 USERS_DATA = [
     {
-        "name": "LocaBazaar Superadmin",
+        "name": "Ritish Ghosh",
         "email": SUPERADMIN_EMAIL,
         "password": SUPERADMIN_PASSWORD,
-        "role": UserRole.PROVIDER,
+        "role": UserRole.CUSTOMER,
         "is_active": True,
         "is_superuser": True,
         "is_verified": True,
@@ -93,6 +87,18 @@ USERS_DATA = [
         "phone": "+91 9880044556",
         "bio": "Luxury at-home wellness and beauty treatments by certified cosmetologists and massage therapists.",
         "avatar_url": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80",
+    },
+    {
+        "name": "HomeFix Appliance & Home Repair",
+        "email": "homefix@locabazaar.com",
+        "password": DEMO_PASSWORD,
+        "role": UserRole.PROVIDER,
+        "is_active": True,
+        "is_superuser": False,
+        "is_verified": True,
+        "phone": "+91 9880055667",
+        "bio": "Local specialists for appliance servicing, furniture assembly, and home repairs.",
+        "avatar_url": "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=400&q=80",
     },
     {
         "name": "Aarav Sharma",
@@ -243,7 +249,7 @@ SERVICES_DATA = [
     # Appliance Repair
     {
         "category_name": "Appliance Repair",
-        "owner_email": "ritish.ghosh77@gmail.com",
+        "owner_email": "homefix@locabazaar.com",
         "name": "Split & Window AC Jet Servicing",
         "description": "Deep power jet wash of evaporator coils, condenser fin straightening, blower cleanup, filter replacement, and gas pressure diagnostics.",
         "price": 699,
@@ -252,7 +258,7 @@ SERVICES_DATA = [
     },
     {
         "category_name": "Appliance Repair",
-        "owner_email": "ritish.ghosh77@gmail.com",
+        "owner_email": "homefix@locabazaar.com",
         "name": "Double Door Refrigerator Repair",
         "description": "Complete diagnostic for cooling loss, defroster failure, noisy compressor, relay replacement, and eco-friendly gas recharge.",
         "price": 899,
@@ -262,7 +268,7 @@ SERVICES_DATA = [
     # Painting & Carpentry
     {
         "category_name": "Painting & Carpentry",
-        "owner_email": "ritish.ghosh77@gmail.com",
+        "owner_email": "homefix@locabazaar.com",
         "name": "Furniture Assembly & Custom Wood Repair",
         "description": "Fast assembly of IKEA and online flat-pack furniture, hydraulic bed lift adjustments, soft-close hinge fitting, and table repair.",
         "price": 599,
@@ -271,7 +277,7 @@ SERVICES_DATA = [
     },
     {
         "category_name": "Painting & Carpentry",
-        "owner_email": "ritish.ghosh77@gmail.com",
+        "owner_email": "homefix@locabazaar.com",
         "name": "Interior Accent Wall Painting",
         "description": "Crack filling, double primer coating, and two coats of premium luxury emulsion or geometric texture on a feature wall.",
         "price": 1799,
@@ -424,19 +430,17 @@ async def seed():
     print("[SEED] Starting LocaBazaar database seed...")
 
     async with AsyncSessionLocal() as db:
-        # 1. Ensure existing provider Ritish Ghosh is active
-        res = await db.execute(select(User).where(User.email == "ritish.ghosh77@gmail.com"))
-        existing_ritish = res.scalars().first()
-        if existing_ritish:
-            existing_ritish.is_active = True
-            existing_ritish.is_verified = True
-            if not existing_ritish.bio:
-                existing_ritish.bio = "Expert handyman & home maintenance specialist with 10+ years experience."
-            if not existing_ritish.phone:
-                existing_ritish.phone = "+91 9876543210"
-            print("  Updated existing provider Ritish Ghosh to active and verified.")
+        # Demote the previous demo admin account if the seed is rerun on an existing database.
+        legacy_admin_result = await db.execute(
+            select(User).where(User.email == "admin@locabazaar.com")
+        )
+        legacy_admin = legacy_admin_result.scalars().first()
+        if legacy_admin:
+            legacy_admin.is_superuser = False
+            legacy_admin.is_active = False
+            legacy_admin.role = UserRole.CUSTOMER
 
-        # 2. Seed Users (Superadmin, Providers, Customers)
+        # 1. Seed Users (Superadmin, Providers, Customers)
         user_cache = {}
         for udata in USERS_DATA:
             res = await db.execute(select(User).where(User.email == udata["email"]))
@@ -462,6 +466,8 @@ async def seed():
                 # Ensure superadmin privileges and active status are preserved
                 if udata["is_superuser"]:
                     user.is_superuser = True
+                    user.name = udata["name"]
+                    user.role = udata["role"]
                 user.is_active = udata["is_active"]
                 user.is_verified = udata["is_verified"]
                 if udata.get("avatar_url") and not user.avatar_url:
@@ -475,7 +481,7 @@ async def seed():
             user_cache[user.email] = user
 
         # Also cache existing users
-        for email in ["rgcatalyst1@gmail.com", "ritish.ghosh77@gmail.com"]:
+        for email in ["rgcatalyst1@gmail.com"]:
             if email not in user_cache:
                 res = await db.execute(select(User).where(User.email == email))
                 u = res.scalars().first()
@@ -608,7 +614,7 @@ async def seed():
     print(f"SUPERADMIN ACCOUNT:")
     print(f"  Email:    {SUPERADMIN_EMAIL}")
     print(f"  Password: {SUPERADMIN_PASSWORD}")
-    print(f"  Role:     PROVIDER (Superuser)")
+    print(f"  Role:     CUSTOMER (Superuser)")
     print(f"  Access:   /admin/dashboard (Full governance permissions)")
     print("=======================================================\n")
 

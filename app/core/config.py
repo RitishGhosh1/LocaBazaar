@@ -8,8 +8,6 @@ class Config(BaseSettings):
     DB_PASSWORD: str
     FRONTEND_URL: str
     CORS_ORIGINS: str = ""
-    SEED_SUPERADMIN_PASSWORD: str | None = None
-    SEED_DEMO_PASSWORD: str | None = None
     
     # 🎯 THE FIX: Expect a single production-grade connection string from the cloud
     # We leave the localhost fallback active exclusively for your local computer
